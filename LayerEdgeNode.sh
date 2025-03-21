@@ -273,10 +273,21 @@ install_node() {
     # Установка Risc0
     echo -e "${BLUE}Устанавливаем Risc0...${NC}"
     curl -L https://risczero.com/install | bash
-    rzup install
-
-    # Обновление окружения
+    # Добавляем путь к rzup в PATH вручную
+    export PATH="$PATH:/root/.risc0/bin"
+    # Обновляем окружение
     source ~/.bashrc
+    # Проверяем, доступен ли rzup
+    if ! command -v rzup &> /dev/null; then
+        echo -e "${RED}Не удалось найти команду rzup после установки! Проверьте установку Risc0.${NC}"
+        return 1
+    fi
+    # Выполняем установку Risc0
+    rzup install
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Ошибка при выполнении rzup install! Проверьте подключение к интернету и повторите установку.${NC}"
+        return 1
+    fi
 
     # Клонирование репозитория
     echo -e "${BLUE}Клонируем репозиторий Layer Edge...${NC}"
