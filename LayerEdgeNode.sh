@@ -247,6 +247,21 @@ view_public_key() {
 install_node() {
     echo -e "${BLUE}Начинается установка ноды Layer Edge...${NC}"
 
+    # Проверка свободного места на диске
+    echo -e "${BLUE}Проверяем свободное место на диске...${NC}"
+    free_space=$(df -h $HOME | tail -1 | awk '{print $4}')
+    if [[ $free_space == *G* ]]; then
+        free_space_gb=$(echo $free_space | tr -d 'G')
+        if (( $(echo "$free_space_gb < 5" | bc -l) )); then
+            echo -e "${RED}Недостаточно места на диске! Требуется минимум 5 ГБ, доступно: $free_space. Выход...${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}Недостаточно места на диске! Доступно: $free_space. Выход...${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}Свободное место на диске: $free_space. Продолжаем...${NC}"
+
     # Обновление и установка зависимостей
     echo -e "${BLUE}Обновляем и устанавливаем необходимые пакеты...${NC}"
     sudo apt-get update -y && sudo apt upgrade -y
@@ -289,9 +304,14 @@ install_node() {
         return 1
     fi
 
-    # Клонирование репозитория
+    # Клонирование репозитория с тайм-аутом 5 минут (300 секунд)
     echo -e "${BLUE}Клонируем репозиторий Layer Edge...${NC}"
-    git clone https://github.com/Layer-Edge/light-node.git &>/dev/null
+    timeout 300 git clone https://github.com/Layer-Edge/light-node.git
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Не удалось клонировать репозиторий! Проверьте подключение к интернету или доступ к GitHub.${NC}"
+        echo -e "${YELLOW}Попробуйте выполнить команду вручную: git clone https://github.com/Layer-Edge/light-node.git${NC}"
+        return 1
+    fi
     cd light-node || { echo -e "${RED}Не удалось перейти в директорию light-node. Выход...${NC}"; return; }
 
     # Получение приватного ключа
@@ -319,16 +339,25 @@ EOF
 
     # Проверка, завершилась ли сборка
     echo -e "${BLUE}Ожидаем завершения сборки risc0-merkle-service...${NC}"
-    while screen -S risc -X stuff "echo 'still running'\n" 2>/dev/null; do
+    timeout 600 bash -c 'while screen -S risc -X stuff "echo \"still running\"\n" 2>/dev/null; do
         echo -e "${YELLOW}Сборка всё ещё выполняется, ждём...${NC}"
         sleep 10
-    done
+    done'
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Сборка risc0-merkle-service не завершилась за 10 минут!${NC}"
+        echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}"
+        return 1
+    fi
     echo -e "${GREEN}Сборка risc0-merkle-service завершена!${NC}"
 
     # Сборка основного бинарника
     cd ..
     echo -e "${BLUE}Собираем основной бинарник light-node...${NC}"
     go build
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Ошибка при сборке light-node! Проверьте зависимости Go.${NC}"
+        return 1
+    fi
     echo -e "${GREEN}Сборка light-node завершена!${NC}"
 
     # Создание сервисного файла
@@ -400,7 +429,11 @@ update_node() {
     # Обновление репозитория
     echo -e "${BLUE}Обновляем репозиторий...${NC}"
     cd $HOME/light-node
-    git pull
+    timeout 300 git pull
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Не удалось обновить репозиторий! Проверьте подключение к интернету или доступ к GitHub.${NC}"
+        return 1
+    fi
 
     # Восстановление .env
     echo -e "${BLUE}Восстанавливаем файл .env...${NC}"
@@ -423,15 +456,24 @@ EOF
     sleep 10
 
     echo -e "${BLUE}Ожидаем завершения сборки risc0-merkle-service...${NC}"
-    while screen -S risc -X stuff "echo 'still running'\n" 2>/dev/null; do
+    timeout 600 bash -c 'while screen -S risc -X stuff "echo \"still running\"\n" 2>/dev/null; do
         echo -e "${YELLOW}Сборка всё ещё выполняется, ждём...${NC}"
         sleep 10
-    done
+    done'
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Сборка risc0-merkle-service не завершилась за 10 минут!${NC}"
+        echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}"
+        return 1
+    fi
     echo -e "${GREEN}Сборка risc0-merkle-service завершена!${NC}"
 
     cd ..
     echo -e "${BLUE}Пересобираем light-node...${NC}"
     go build
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Ошибка при сборке light-node! Проверьте зависимости Go.${NC}"
+        return 1
+    fi
     echo -e "${GREEN}Сборка light-node завершена!${NC}"
 
     # Перезапуск сервиса
