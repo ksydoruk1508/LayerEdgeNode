@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Задать приватный ключ вручную (без 0x), если не хочешь интерактивный ввод
-# Если оставить пустым, скрипт запросит выбор
-DEFAULT_PRIVATE_KEY=""
-
 # Цвета текста
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,137 +22,31 @@ EOF
     echo -e "${NC}"
 }
 
-generate_wallet() {
-    echo -e "${BLUE}Генерируем новый кошелёк...${NC}" >&2
-
-    # Проверяем, установлен ли Go
-    if ! command -v go &> /dev/null; then
-        echo -e "${RED}Go не установлен! Установите Go перед генерацией кошелька.${NC}" >&2
-        return 1
-    fi
-
-    # Создаём временный Go-файл для генерации кошелька
-    cat <<EOF > /tmp/generate_wallet.go
-package main
-
-import (
-    "fmt"
-    "github.com/ethereum/go-ethereum/crypto"
-    "log"
-)
-
-func main() {
-    // Генерация нового приватного ключа
-    privateKey, err := crypto.GenerateKey()
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Получение публичного ключа и адреса
-    privateKeyBytes := crypto.FromECDSA(privateKey)
-    publicKey := privateKey.PublicKey
-    address := crypto.PubkeyToAddress(publicKey).Hex()
-
-    // Вывод приватного ключа (без префикса 0x) и адреса
-    fmt.Printf("%x\n", privateKeyBytes)
-    fmt.Printf("%s\n", address)
-}
-EOF
-
-    # Компилируем и запускаем
-    go run /tmp/generate_wallet.go > /tmp/wallet.txt 2>/dev/null
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Не удалось сгенерировать кошелёк. Убедитесь, что Go установлен и работает корректно.${NC}" >&2
-        return 1
-    fi
-
-    # Читаем приватный ключ и адрес из файла
-    private_key=$(head -n 1 /tmp/wallet.txt)
-    address=$(tail -n 1 /tmp/wallet.txt)
-
-    # Сохраняем кошелёк в файл
-    echo -e "Private Key: $private_key\nAddress: $address" > $HOME/layer-edge-wallet.txt
-    echo -e "${GREEN}Новый кошелёк сгенерирован и сохранён в $HOME/layer-edge-wallet.txt:${NC}" >&2
-    echo -e "${CYAN}Адрес: $address${NC}" >&2
-    echo -e "${CYAN}Приватный ключ: $private_key${NC}" >&2
-    echo -e "${YELLOW}Сохраните эти данные в безопасном месте!${NC}" >&2
-
-    # Удаляем временные файлы
-    rm -f /tmp/generate_wallet.go /tmp/wallet.txt
-
-    echo "$private_key"
-}
-
 get_private_key() {
-    # Если задан DEFAULT_PRIVATE_KEY, используем его
-    if [ -n "$DEFAULT_PRIVATE_KEY" ]; then
-        echo -e "${GREEN}Используется заранее заданный приватный ключ: $DEFAULT_PRIVATE_KEY${NC}" >&2
-        echo "$DEFAULT_PRIVATE_KEY"
-        return 0
-    fi
-
     # Проверяем, доступен ли интерактивный терминал
     if [ -t 0 ] && [ -t 1 ]; then
-        echo -e "${BLUE}Терминал интерактивный, запрашиваем выбор...${NC}" >&2
+        echo -e "${BLUE}Терминал интерактивный, запрашиваем приватный ключ...${NC}" >&2
         interactive=true
     else
         echo -e "${RED}Терминал не интерактивный! Запрос ввода невозможен.${NC}" >&2
-        echo -e "${YELLOW}Пожалуйста, задайте приватный ключ вручную в переменной DEFAULT_PRIVATE_KEY в начале скрипта.${NC}" >&2
+        echo -e "${YELLOW}Пожалуйста, запустите скрипт в интерактивной среде (например, через терминал).${NC}" >&2
         interactive=false
     fi
 
     if [ "$interactive" = true ]; then
-        # Выводим запрос
-        echo -e "${YELLOW}Хотите использовать существующий кошелёк или сгенерировать новый?${NC}" >&2
-        echo -e "${CYAN}1. Использовать существующий кошелёк${NC}" >&2
-        echo -e "${CYAN}2. Сгенерировать новый кошелёк${NC}" >&2
-        echo -e "${YELLOW}Введите номер:${NC} " >&2
-
-        # Читаем выбор пользователя (без тайм-аута в интерактивной среде)
-        read wallet_choice < /dev/tty
-        if [ -z "$wallet_choice" ]; then
-            echo -e "${YELLOW}Выбор не указан, используется значение по умолчанию (1).${NC}" >&2
-            wallet_choice=1
-        fi
-    else
-        # Если терминал не интерактивный, используем значение по умолчанию
-        echo -e "${YELLOW}Используется значение по умолчанию (1) из-за неинтерактивного режима.${NC}" >&2
-        wallet_choice=1
-    fi
-
-    # Отладка: выводим выбранный вариант
-    echo -e "${BLUE}Выбранный вариант: $wallet_choice${NC}" >&2
-
-    case $wallet_choice in
-        1)
-            if [ "$interactive" = true ]; then
-                echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
-                read private_key < /dev/tty
-                if [ -z "$private_key" ]; then
-                    echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
-                    return 1
-                fi
-            else
-                echo -e "${RED}Неинтерактивный режим: невозможно запросить приватный ключ.${NC}" >&2
-                echo -e "${YELLOW}Задайте приватный ключ в переменной DEFAULT_PRIVATE_KEY в начале скрипта.${NC}" >&2
-                return 1
-            fi
-            echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
-            echo "$private_key"
-            ;;
-        2)
-            private_key=$(generate_wallet)
-            if [ $? -ne 0 ]; then
-                echo -e "${RED}Ошибка генерации кошелька. Выход...${NC}" >&2
-                return 1
-            fi
-            echo "$private_key"
-            ;;
-        *)
-            echo -e "${RED}Неверный выбор! Выход...${NC}" >&2
+        # Запрашиваем приватный ключ без тайм-аута
+        echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
+        read private_key < /dev/tty
+        if [ -z "$private_key" ]; then
+            echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
             return 1
-            ;;
-    esac
+        fi
+        echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
+        echo "$private_key"
+    else
+        echo -e "${RED}Неинтерактивный режим: невозможно запросить приватный ключ.${NC}" >&2
+        return 1
+    fi
 }
 
 get_address_from_private_key() {
@@ -232,7 +122,7 @@ view_private_key() {
             echo -e "${RED}Приватный ключ не найден в layer-edge-wallet.txt!${NC}" >&2
         fi
     else
-        echo -e "${YELLOW}Файл layer-edge-wallet.txt не найден (возможно, кошелёк не был сгенерирован скриптом).${NC}" >&2
+        echo -e "${YELLOW}Файл layer-edge-wallet.txt не найден.${NC}" >&2
     fi
 
     if [ -z "$private_key" ]; then
@@ -263,7 +153,7 @@ view_public_key() {
             echo -e "${RED}Адрес не найден в layer-edge-wallet.txt!${NC}" >&2
         fi
     else
-        echo -e "${YELLOW}Файл layer-edge-wallet.txt не найден (возможно, кошелёк не был сгенерирован скриптом).${NC}" >&2
+        echo -e "${YELLOW}Файл layer-edge-wallet.txt не найден.${NC}" >&2
     fi
 
     # Пробуем получить адрес из приватного ключа
