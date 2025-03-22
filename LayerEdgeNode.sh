@@ -23,30 +23,15 @@ EOF
 }
 
 get_private_key() {
-    # Проверяем, доступен ли интерактивный терминал
-    if [ -t 0 ] && [ -t 1 ]; then
-        echo -e "${BLUE}Терминал интерактивный, запрашиваем приватный ключ...${NC}" >&2
-        interactive=true
-    else
-        echo -e "${RED}Терминал не интерактивный! Запрос ввода невозможен.${NC}" >&2
-        echo -e "${YELLOW}Пожалуйста, запустите скрипт в интерактивной среде (например, через терминал).${NC}" >&2
-        interactive=false
-    fi
-
-    if [ "$interactive" = true ]; then
-        # Запрашиваем приватный ключ без тайм-аута
-        echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
-        read private_key < /dev/tty
-        if [ -z "$private_key" ]; then
-            echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
-            return 1
-        fi
-        echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
-        echo "$private_key"
-    else
-        echo -e "${RED}Неинтерактивный режим: невозможно запросить приватный ключ.${NC}" >&2
+    # Запрашиваем приватный ключ без проверки интерактивности
+    echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
+    read private_key
+    if [ -z "$private_key" ]; then
+        echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
         return 1
     fi
+    echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
+    echo "$private_key"
 }
 
 get_address_from_private_key() {
@@ -242,16 +227,11 @@ install_node() {
     echo -e "${BLUE}Проверяем наличие директории light-node...${NC}" >&2
     if [ -d "$HOME/light-node" ]; then
         echo -e "${YELLOW}Директория $HOME/light-node уже существует!${NC}" >&2
-        if [ -t 0 ] && [ -t 1 ]; then
-            echo -e "${CYAN}1. Удалить существующую директорию и клонировать заново${NC}" >&2
-            echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}" >&2
-            echo -e "${CYAN}3. Прервать установку${NC}" >&2
-            echo -e "${YELLOW}Введите номер:${NC} " >&2
-            read dir_choice < /dev/tty
-        else
-            echo -e "${YELLOW}Неинтерактивный режим: автоматически выбираем удаление директории (1).${NC}" >&2
-            dir_choice=1
-        fi
+        echo -e "${CYAN}1. Удалить существующую директорию и клонировать заново${NC}" >&2
+        echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}" >&2
+        echo -e "${CYAN}3. Прервать установку${NC}" >&2
+        echo -e "${YELLOW}Введите номер:${NC} " >&2
+        read dir_choice
         case $dir_choice in
             1)
                 echo -e "${BLUE}Удаляем существующую директорию...${NC}" >&2
@@ -401,12 +381,7 @@ restart_node() {
 
 delete_node() {
     echo -e "${YELLOW}Если уверены, что хотите удалить ноду, введите любую букву (CTRL+C чтобы выйти):${NC}" >&2
-    if [ -t 0 ] && [ -t 1 ]; then
-        read -p "> " checkjust < /dev/tty
-    else
-        echo -e "${YELLOW}Неинтерактивный режим: автоматически подтверждаем удаление.${NC}" >&2
-        checkjust="y"
-    fi
+    read -p "> " checkjust
 
     # Остановка сервиса
     echo -e "${BLUE}Останавливаем сервис edged...${NC}" >&2
@@ -449,12 +424,7 @@ main_menu() {
         echo -e "${CYAN}8. Выход${NC}" >&2
         
         echo -e "${YELLOW}Введите номер:${NC} " >&2
-        if [ -t 0 ] && [ -t 1 ]; then
-            read choice < /dev/tty
-        else
-            echo -e "${RED}Неинтерактивный режим: выбор невозможен. Выход...${NC}" >&2
-            exit 1
-        fi
+        read choice
         case $choice in
             1) install_node ;;
             2) check_logs ;;
