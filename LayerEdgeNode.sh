@@ -304,15 +304,53 @@ install_node() {
         return 1
     fi
 
-    # Клонирование репозитория с тайм-аутом 5 минут (300 секунд)
-    echo -e "${BLUE}Клонируем репозиторий Layer Edge...${NC}"
-    timeout 300 git clone https://github.com/Layer-Edge/light-node.git
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Не удалось клонировать репозиторий! Проверьте подключение к интернету или доступ к GitHub.${NC}"
-        echo -e "${YELLOW}Попробуйте выполнить команду вручную: git clone https://github.com/Layer-Edge/light-node.git${NC}"
-        return 1
+    # Проверка существования директории light-node
+    echo -e "${BLUE}Проверяем наличие директории light-node...${NC}"
+    if [ -d "$HOME/light-node" ]; then
+        echo -e "${YELLOW}Директория $HOME/light-node уже существует!${NC}"
+        echo -e "${CYAN}1. Удалить существующую директорию и клонировать заново${NC}"
+        echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}"
+        echo -e "${CYAN}3. Прервать установку${NC}"
+        echo -e "${YELLOW}Введите номер:${NC} "
+        read dir_choice
+        case $dir_choice in
+            1)
+                echo -e "${BLUE}Удаляем существующую директорию...${NC}"
+                rm -rf $HOME/light-node
+                echo -e "${GREEN}Директория удалена.${NC}"
+                ;;
+            2)
+                echo -e "${BLUE}Используем существующую директорию, выполняем git pull...${NC}"
+                cd $HOME/light-node
+                git pull
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}Не удалось выполнить git pull! Проверьте состояние репозитория.${NC}"
+                    return 1
+                fi
+                echo -e "${GREEN}Репозиторий обновлён.${NC}"
+                ;;
+            3)
+                echo -e "${RED}Установка прервана пользователем.${NC}"
+                return 1
+                ;;
+            *)
+                echo -e "${RED}Неверный выбор! Установка прервана.${NC}"
+                return 1
+                ;;
+        esac
     fi
-    cd light-node || { echo -e "${RED}Не удалось перейти в директорию light-node. Выход...${NC}"; return; }
+
+    # Клонирование репозитория, если директория была удалена или не существовала
+    if [ ! -d "$HOME/light-node" ]; then
+        echo -e "${BLUE}Клонируем репозиторий Layer Edge...${NC}"
+        timeout 300 git clone https://github.com/Layer-Edge/light-node.git
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Не удалось клонировать репозиторий! Проверьте подключение к интернету или доступ к GitHub.${NC}"
+            echo -e "${YELLOW}Попробуйте выполнить команду вручную: git clone https://github.com/Layer-Edge/light-node.git${NC}"
+            return 1
+        fi
+    fi
+    cd $HOME/light-node || { echo -e "${RED}Не удалось перейти в директорию light-node. Выход...${NC}"; return; }
 
     # Получение приватного ключа
     private_key=$(get_private_key)
@@ -530,31 +568,4 @@ main_menu() {
         channel_logo
         sleep 2
         echo -e "\n\n${YELLOW}Выберите действие:${NC}"
-        echo -e "${CYAN}1. Установить ноду${NC}"
-        echo -e "${CYAN}2. Просмотреть логи ноды${NC}"
-        echo -e "${CYAN}3. Просмотреть логи risc0-merkle-service${NC}"
-        echo -e "${CYAN}4. Перезапустить ноду${NC}"
-        echo -e "${CYAN}5. Обновить ноду${NC}"
-        echo -e "${CYAN}6. Просмотреть приватный ключ${NC}"
-        echo -e "${CYAN}7. Просмотреть публичный ключ для дашборда${NC}"
-        echo -e "${CYAN}8. Удалить ноду${NC}"
-        echo -e "${CYAN}9. Выход${NC}"
-        
-        echo -e "${YELLOW}Введите номер:${NC} "
-        read choice
-        case $choice in
-            1) install_node ;;
-            2) check_logs ;;
-            3) check_risc_logs ;;
-            4) restart_node ;;
-            5) update_node ;;
-            6) view_private_key ;;
-            7) view_public_key ;;
-            8) delete_node ;;
-            9) exit_from_script ;;
-            *) echo -e "${RED}Неверный выбор, попробуйте снова.${NC}" ;;
-        esac
-    done
-}
-
-main_menu
+        echo -e "${CYAN}1. Установит
