@@ -568,4 +568,31 @@ main_menu() {
         channel_logo
         sleep 2
         echo -e "\n\n${YELLOW}Выберите действие:${NC}"
-        echo -e "${CYAN}1. Установит
+        echo -e "${CYAN}1. Установить ноду${NC}"
+        echo -e "${CYAN}2. Просмотреть логи ноды${NC}"
+        echo -e "${CYAN}3. Просмотреть логи risc0-merkle-service${NC}"
+        echo -e "${CYAN}4. Перезапустить ноду${NC}"
+        echo -e "${CYAN}5. Обновить ноду${NC}"
+        echo -e "${CYAN}6. Просмотреть приватный ключ${NC}"
+        echo -e "${CYAN}7. Просмотреть публичный ключ для дашборда${NC}"
+        echo -e "${CYAN}8. Удалить ноду${NC}"
+        echo -e "${CYAN}9. Выход${NC}"
+        
+        echo -e "${YELLOW}Введите номер:${NC} "
+        read choice
+        case $choice in
+            1) install_node ;;
+            2) check_logs ;;
+            3) check_risc_logs ;;
+            4) restart_node ;;
+            5) update_node ;;
+            6) view_private_key ;;
+            7) view_public_key ;;
+            8) delete_node ;;
+            9) exit_from_script ;;
+            *) echo -e "${RED}Неверный выбор, попробуйте снова.${NC}" ;;
+        esac
+    done
+}
+
+main_menu
