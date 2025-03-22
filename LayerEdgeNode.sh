@@ -87,39 +87,43 @@ get_private_key() {
     echo -e "${YELLOW}Хотите использовать существующий кошелёк или сгенерировать новый?${NC}"
     echo -e "${CYAN}1. Использовать существующий кошелёк${NC}"
     echo -e "${CYAN}2. Сгенерировать новый кошелёк${NC}"
-    echo -e "${YELLOW}Введите номер (ожидание 60 секунд, по умолчанию 1):${NC} "
+    echo -e "${YELLOW}Введите номер (ожидание 120 секунд, по умолчанию 1):${NC} "
     
-    # Читаем ввод с тайм-аутом 60 секунд
-    if ! read -t 60 wallet_choice; then
+    # Увеличиваем тайм-аут до 120 секунд
+    if ! read -t 120 wallet_choice; then
         echo -e "${YELLOW}Время ожидания истекло, используется значение по умолчанию (1).${NC}"
         wallet_choice=1
     fi
 
+    # Добавляем отладку
+    echo -e "${BLUE}Выбранный вариант: $wallet_choice${NC}"
+
     case $wallet_choice in
         1)
             echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}"
-            echo -e "${YELLOW}Ожидание 60 секунд...${NC}"
-            if ! read -t 60 private_key; then
+            echo -e "${YELLOW}Ожидание 120 секунд...${NC}"
+            if ! read -t 120 private_key; then
                 echo -e "${RED}Время ожидания истекло! Приватный ключ не введён. Выход...${NC}"
-                exit 1
+                return 1
             fi
             if [ -z "$private_key" ]; then
                 echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}"
-                exit 1
+                return 1
             fi
+            echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}"
             echo $private_key
             ;;
         2)
             private_key=$(generate_wallet)
             if [ $? -ne 0 ]; then
                 echo -e "${RED}Ошибка генерации кошелька. Выход...${NC}"
-                exit 1
+                return 1
             fi
             echo $private_key
             ;;
         *)
             echo -e "${RED}Неверный выбор! Выход...${NC}"
-            exit 1
+            return 1
             ;;
     esac
 }
@@ -368,11 +372,11 @@ install_node() {
     # Получение приватного ключа
     echo -e "${BLUE}Запрашиваем приватный ключ...${NC}"
     private_key=$(get_private_key)
-    if [ -z "$private_key" ]; then
+    if [ $? -ne 0 ] || [ -z "$private_key" ]; then
         echo -e "${RED}Не удалось получить приватный ключ! Выход...${NC}"
         return 1
     fi
-    echo -e "${GREEN}Приватный ключ успешно получен.${NC}"
+    echo -e "${GREEN}Приватный ключ успешно получен: $private_key${NC}"
 
     # Настройка .env файла
     echo -e "${BLUE}Создаём файл .env...${NC}"
