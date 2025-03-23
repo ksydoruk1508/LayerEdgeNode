@@ -12,7 +12,7 @@ NC='\033[0m' # Нет цвета (сброс цвета)
 channel_logo() {
     echo -e "${GREEN}"
     cat << "EOF"
-█   █       █████  ██    ██ ███████ ██████      ███████ ██████   ██████  ███████ 
+██       █████  ██    ██ ███████ ██████      ███████ ██████   ██████  ███████ 
 ██      ██   ██ ██    ██ ██      ██   ██     ██      ██   ██ ██    ██ ██      
 ██      ███████ ██    ██ █████   ██████      █████   ██   ██ ██    ██ █████   
 ██      ██   ██  ██  ██  ██      ██   ██     ██      ██   ██ ██    ██ ██      
@@ -23,17 +23,15 @@ EOF
 }
 
 get_private_key() {
-
-        # Запрашиваем приватный ключ без тайм-аута
-        echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
-        read private_key < /dev/tty
-        if [ -z "$private_key" ]; then
-            echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
-            return 1
-        fi
-        echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
-        echo "$private_key"
+    # Запрашиваем приватный ключ без проверки интерактивности
+    echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
+    read private_key
+    if [ -z "$private_key" ]; then
+        echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
+        return 1
     fi
+    echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
+    echo "$private_key"
 }
 
 get_address_from_private_key() {
@@ -234,7 +232,7 @@ install_node() {
             echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}" >&2
             echo -e "${CYAN}3. Прервать установку${NC}" >&2
             echo -e "${YELLOW}Введите номер:${NC} " >&2
-            read dir_choice < /dev/tty
+            read dir_choice
         else
             echo -e "${YELLOW}Неинтерактивный режим: автоматически выбираем удаление директории (1).${NC}" >&2
             dir_choice=1
@@ -277,10 +275,8 @@ install_node() {
         fi
     fi
 
-    # Переход в директорию light-node с отладкой
-    echo -e "${BLUE}Переходим в директорию $HOME/light-node...${NC}" >&2
+    # Переход в директорию light-node (без отладочных сообщений)
     cd $HOME/light-node || { echo -e "${RED}Не удалось перейти в директорию $HOME/light-node. Проверьте права доступа и наличие директории.${NC}" >&2; return 1; }
-    echo -e "${GREEN}Успешно перешли в директорию $HOME/light-node.${NC}" >&2
 
     # Получение приватного ключа
     echo -e "${BLUE}Запрашиваем приватный ключ...${NC}" >&2
@@ -408,7 +404,7 @@ restart_node() {
 delete_node() {
     echo -e "${YELLOW}Если уверены, что хотите удалить ноду, введите любую букву (CTRL+C чтобы выйти):${NC}" >&2
     if [ -t 0 ] && [ -t 1 ]; then
-        read -p "> " checkjust < /dev/tty
+        read -p "> " checkjust
     else
         echo -e "${YELLOW}Неинтерактивный режим: автоматически подтверждаем удаление.${NC}" >&2
         checkjust="y"
@@ -456,7 +452,7 @@ main_menu() {
         
         echo -e "${YELLOW}Введите номер:${NC} " >&2
         if [ -t 0 ] && [ -t 1 ]; then
-            read choice < /dev/tty
+            read choice
         else
             echo -e "${RED}Неинтерактивный режим: выбор невозможен. Выход...${NC}" >&2
             exit 1
