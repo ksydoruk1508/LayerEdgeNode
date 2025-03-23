@@ -308,8 +308,8 @@ EOF
     echo -e "${YELLOW}risc0-merkle-service запущен в screen-сессии 'risc'. Дождитесь завершения сборки...${NC}" >&2
     sleep 10  # Даём время на начало сборки
 
-    # Проверка завершения сборки через логи screen
-    echo -e "${BLUE}Ожидаем завершения сборки и запуска risc0-merkle-service...${NC}" >&2
+    # Ожидание завершения сборки (до 10 минут или появления строки "Starting server on port 3001...")
+    echo -e "${BLUE}Ожидаем завершения сборки и запуска risc0-merkle-service (до 10 минут)...${NC}" >&2
     timeout 600 bash -c '
         while true; do
             # Создаём временный файл для логов screen
@@ -321,24 +321,6 @@ EOF
                     rm -f /tmp/risc_log.txt
                     exit 0
                 fi
-                # Проверяем на наличие критических ошибок
-                # Игнорируем строки с "warning", чтобы избежать ложных срабатываний
-                if grep -qi "error" /tmp/risc_log.txt && ! grep -qi "warning.*error" /tmp/risc_log.txt; then
-                    echo -e "${RED}Обнаружена ошибка при сборке risc0-merkle-service!${NC}" >&2
-                    echo -e "${YELLOW}Строка с ошибкой:${NC}" >&2
-                    grep -i "error" /tmp/risc_log.txt >&2
-                    echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
-                    rm -f /tmp/risc_log.txt
-                    exit 1
-                fi
-                if grep -qi "failed" /tmp/risc_log.txt && ! grep -qi "warning.*failed" /tmp/risc_log.txt; then
-                    echo -e "${RED}Обнаружена ошибка при сборке risc0-merkle-service!${NC}" >&2
-                    echo -e "${YELLOW}Строка с ошибкой:${NC}" >&2
-                    grep -i "failed" /tmp/risc_log.txt >&2
-                    echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
-                    rm -f /tmp/risc_log.txt
-                    exit 1
-                fi
                 rm -f /tmp/risc_log.txt
             fi
             echo -e "${YELLOW}Сборка всё ещё выполняется, ждём...${NC}" >&2
@@ -346,7 +328,7 @@ EOF
         done
     '
     if [ $? -ne 0 ]; then
-        echo -e "${RED}Сборка risc0-merkle-service не завершилась успешно или превысила 10 минут!${NC}" >&2
+        echo -e "${RED}Сборка risc0-merkle-service не завершилась в течение 10 минут!${NC}" >&2
         echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
         return 1
     fi
