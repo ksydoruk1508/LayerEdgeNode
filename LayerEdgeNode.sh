@@ -116,32 +116,19 @@ view_private_key() {
 }
 
 view_public_key() {
-    echo -e "${BLUE}Извлекаем публичный ключ (адрес) для дашборда...${NC}" >&2
+    echo -e "${BLUE}Извлекаем Compressed Public Key из логов сервиса edged...${NC}" >&2
 
-    # Проверяем логи сервиса edged
-    echo -e "${BLUE}Проверяем логи сервиса edged...${NC}" >&2
-    public_key=$(journalctl -u edged -o cat | grep -i "public key" | head -n 1 | grep -oE 'cosmos1[a-z0-9]{38}' || echo "")
-    if [ -n "$public_key" ]; then
-        echo -e "${CYAN}Публичный ключ из логов:${NC} $public_key" >&2
+    # Проверяем логи сервиса edged, берём первые 50 строк, чтобы искать в начале
+    compressed_public_key=$(journalctl -u edged -o cat --no-pager | head -n 50 | grep -i "Compressed Public Key" | head -n 1 | sed -n 's/.*Compressed Public Key: \([0-9a-fA-F]\+\).*/\1/p' || echo "")
+    
+    if [ -n "$compressed_public_key" ]; then
+        echo -e "${CYAN}Compressed Public Key из логов:${NC} $compressed_public_key" >&2
         return
     else
-        echo -e "${YELLOW}Публичный ключ не найден в логах. Пробуем другие способы...${NC}" >&2
+        echo -e "${RED}Compressed Public Key не найден в начале логов сервиса edged!${NC}" >&2
     fi
 
-    # Проверяем файл layer-edge-wallet.txt
-    if [ -f $HOME/layer-edge-wallet.txt ]; then
-        address=$(grep "Address" $HOME/layer-edge-wallet.txt | cut -d ' ' -f 2)
-        if [ -n "$address" ]; then
-            echo -e "${CYAN}Адрес из layer-edge-wallet.txt:${NC} $address" >&2
-            return
-        else
-            echo -e "${RED}Адрес не найден в layer-edge-wallet.txt!${NC}" >&2
-        fi
-    else
-        echo -e "${YELLOW}Файл layer-edge-wallet.txt не найден.${NC}" >&2
-    fi
-
-    # Пробуем получить адрес из приватного ключа
+    # Пробуем получить адрес из приватного ключа как запасной вариант
     if [ -f $HOME/light-node/.env ]; then
         private_key=$(grep "PRIVATE_KEY" $HOME/light-node/.env | cut -d '=' -f 2)
         if [ -n "$private_key" ]; then
@@ -160,7 +147,7 @@ view_public_key() {
         echo -e "${RED}Файл .env не найден!${NC}" >&2
     fi
 
-    echo -e "${RED}Не удалось найти публичный ключ! Убедитесь, что нода запущена и логи содержат публичный ключ.${NC}" >&2
+    echo -e "${RED}Не удалось найти Compressed Public Key или адрес! Убедитесь, что нода запущена и логи содержат Compressed Public Key.${NC}" >&2
 }
 
 install_node() {
@@ -376,17 +363,6 @@ check_logs() {
     echo -e "${BLUE}Просмотр логов завершён. Возвращаемся в главное меню...${NC}" >&2
 }
 
-check_risc_logs() {
-    echo -e "${BLUE}Показываем логи risc0-merkle-service (сессия screen 'risc')...${NC}" >&2
-    if screen -list | grep -q "risc"; then
-        screen -r risc
-    else
-        echo -e "${RED}Сессия screen 'risc' не найдена!${NC}" >&2
-        echo -e "${YELLOW}Попробуйте запустить её вручную: cd ~/light-node/risc0-merkle-service && screen -S risc && cargo build && cargo run${NC}" >&2
-    fi
-    echo -e "${BLUE}Просмотр логов завершён. Возвращаемся в главное меню...${NC}" >&2
-}
-
 restart_node() {
     echo -e "${BLUE}Перезапускаем ноду Layer Edge...${NC}" >&2
     sudo systemctl stop edged.service
@@ -436,12 +412,11 @@ main_menu() {
         echo -e "\n\n${YELLOW}Выберите действие:${NC}" >&2
         echo -e "${CYAN}1. Установить ноду${NC}" >&2
         echo -e "${CYAN}2. Просмотреть логи ноды${NC}" >&2
-        echo -e "${CYAN}3. Просмотреть логи risc0-merkle-service${NC}" >&2
-        echo -e "${CYAN}4. Перезапустить ноду${NC}" >&2
-        echo -e "${CYAN}5. Просмотреть приватный ключ${NC}" >&2
-        echo -e "${CYAN}6. Просмотреть публичный ключ для дашборда${NC}" >&2
-        echo -e "${CYAN}7. Удалить ноду${NC}" >&2
-        echo -e "${CYAN}8. Выход${NC}" >&2
+        echo -e "${CYAN}3. Перезапустить ноду${NC}" >&2
+        echo -e "${CYAN}4. Просмотреть приватный ключ${NC}" >&2
+        echo -e "${CYAN}5. Просмотреть Compressed Public Key${NC}" >&2
+        echo -e "${CYAN}6. Удалить ноду${NC}" >&2
+        echo -e "${CYAN}7. Выход${NC}" >&2
         
         echo -e "${YELLOW}Введите номер:${NC} " >&2
         if [ -t 0 ] && [ -t 1 ]; then
@@ -453,12 +428,11 @@ main_menu() {
         case $choice in
             1) install_node ;;
             2) check_logs ;;
-            3) check_risc_logs ;;
-            4) restart_node ;;
-            5) view_private_key ;;
-            6) view_public_key ;;
-            7) delete_node ;;
-            8) exit_from_script ;;
+            3) restart_node ;;
+            4) view_private_key ;;
+            5) view_public_key ;;
+            6) delete_node ;;
+            7) exit_from_script ;;
             *) echo -e "${RED}Неверный выбор, попробуйте снова.${NC}" >&2 ;;
         esac
     done
