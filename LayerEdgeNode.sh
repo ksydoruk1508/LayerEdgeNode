@@ -12,7 +12,7 @@ NC='\033[0m' # Нет цвета (сброс цвета)
 channel_logo() {
     echo -e "${GREEN}"
     cat << "EOF"
-██       █████  ██    ██ ███████ ██████      ███████ ██████   ██████  ███████ 
+█   █       █████  ██    ██ ███████ ██████      ███████ ██████   ██████  ███████ 
 ██      ██   ██ ██    ██ ██      ██   ██     ██      ██   ██ ██    ██ ██      
 ██      ███████ ██    ██ █████   ██████      █████   ██   ██ ██    ██ █████   
 ██      ██   ██  ██  ██  ██      ██   ██     ██      ██   ██ ██    ██ ██      
@@ -23,15 +23,30 @@ EOF
 }
 
 get_private_key() {
-    # Запрашиваем приватный ключ без проверки интерактивности
-    echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
-    read private_key
-    if [ -z "$private_key" ]; then
-        echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
+    # Проверяем, доступен ли интерактивный терминал
+    if [ -t 0 ] && [ -t 1 ]; then
+        echo -e "${BLUE}Терминал интерактивный, запрашиваем приватный ключ...${NC}" >&2
+        interactive=true
+    else
+        echo -e "${RED}Терминал не интерактивный! Запрос ввода невозможен.${NC}" >&2
+        echo -e "${YELLOW}Пожалуйста, запустите скрипт в интерактивной среде (например, через терминал).${NC}" >&2
+        interactive=false
+    fi
+
+    if [ "$interactive" = true ]; then
+        # Запрашиваем приватный ключ без тайм-аута
+        echo -e "${YELLOW}Введите приватный ключ вашего кошелька (без приставки 0x):${NC}" >&2
+        read private_key < /dev/tty
+        if [ -z "$private_key" ]; then
+            echo -e "${RED}Приватный ключ не может быть пустым! Выход...${NC}" >&2
+            return 1
+        fi
+        echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
+        echo "$private_key"
+    else
+        echo -e "${RED}Неинтерактивный режим: невозможно запросить приватный ключ.${NC}" >&2
         return 1
     fi
-    echo -e "${BLUE}Введённый приватный ключ: $private_key${NC}" >&2
-    echo "$private_key"
 }
 
 get_address_from_private_key() {
@@ -227,11 +242,16 @@ install_node() {
     echo -e "${BLUE}Проверяем наличие директории light-node...${NC}" >&2
     if [ -d "$HOME/light-node" ]; then
         echo -e "${YELLOW}Директория $HOME/light-node уже существует!${NC}" >&2
-        echo -e "${CYAN}1. Удалить существующую директорию и клонировать заново${NC}" >&2
-        echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}" >&2
-        echo -e "${CYAN}3. Прервать установку${NC}" >&2
-        echo -e "${YELLOW}Введите номер:${NC} " >&2
-        read dir_choice
+        if [ -t 0 ] && [ -t 1 ]; then
+            echo -e "${CYAN}1. Удалить существующую директорию и клонировать заново${NC}" >&2
+            echo -e "${CYAN}2. Использовать существующую директорию (выполнить git pull)${NC}" >&2
+            echo -e "${CYAN}3. Прервать установку${NC}" >&2
+            echo -e "${YELLOW}Введите номер:${NC} " >&2
+            read dir_choice < /dev/tty
+        else
+            echo -e "${YELLOW}Неинтерактивный режим: автоматически выбираем удаление директории (1).${NC}" >&2
+            dir_choice=1
+        fi
         case $dir_choice in
             1)
                 echo -e "${BLUE}Удаляем существующую директорию...${NC}" >&2
@@ -305,18 +325,37 @@ EOF
     echo -e "${YELLOW}risc0-merkle-service запущен в screen-сессии 'risc'. Дождитесь завершения сборки...${NC}" >&2
     sleep 10  # Даём время на начало сборки
 
-    # Проверка, завершилась ли сборка
-    echo -e "${BLUE}Ожидаем завершения сборки risc0-merkle-service...${NC}" >&2
-    timeout 600 bash -c 'while screen -S risc -X stuff "echo \"still running\"\n" 2>/dev/null; do
-        echo -e "${YELLOW}Сборка всё ещё выполняется, ждём...${NC}" >&2
-        sleep 10
-    done'
+    # Проверка завершения сборки через логи screen
+    echo -e "${BLUE}Ожидаем завершения сборки и запуска risc0-merkle-service...${NC}" >&2
+    timeout 600 bash -c '
+        while true; do
+            # Создаём временный файл для логов screen
+            screen -S risc -X hardcopy /tmp/risc_log.txt 2>/dev/null
+            if [ -f /tmp/risc_log.txt ]; then
+                # Проверяем, есть ли в логах строка, указывающая на запуск сервера
+                if grep -q "Starting server on port 3001" /tmp/risc_log.txt; then
+                    echo -e "${GREEN}Сборка risc0-merkle-service завершена, сервер запущен!${NC}" >&2
+                    rm -f /tmp/risc_log.txt
+                    exit 0
+                fi
+                # Проверяем на наличие ошибок
+                if grep -qi "error" /tmp/risc_log.txt || grep -qi "failed" /tmp/risc_log.txt; then
+                    echo -e "${RED}Обнаружена ошибка при сборке risc0-merkle-service!${NC}" >&2
+                    echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
+                    rm -f /tmp/risc_log.txt
+                    exit 1
+                fi
+                rm -f /tmp/risc_log.txt
+            fi
+            echo -e "${YELLOW}Сборка всё ещё выполняется, ждём...${NC}" >&2
+            sleep 10
+        done
+    '
     if [ $? -ne 0 ]; then
-        echo -e "${RED}Сборка risc0-merkle-service не завершилась за 10 минут!${NC}" >&2
+        echo -e "${RED}Сборка risc0-merkle-service не завершилась успешно или превысила 10 минут!${NC}" >&2
         echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
         return 1
     fi
-    echo -e "${GREEN}Сборка risc0-merkle-service завершена!${NC}" >&2
 
     # Сборка основного бинарника
     cd ..
@@ -381,7 +420,12 @@ restart_node() {
 
 delete_node() {
     echo -e "${YELLOW}Если уверены, что хотите удалить ноду, введите любую букву (CTRL+C чтобы выйти):${NC}" >&2
-    read -p "> " checkjust
+    if [ -t 0 ] && [ -t 1 ]; then
+        read -p "> " checkjust < /dev/tty
+    else
+        echo -e "${YELLOW}Неинтерактивный режим: автоматически подтверждаем удаление.${NC}" >&2
+        checkjust="y"
+    fi
 
     # Остановка сервиса
     echo -e "${BLUE}Останавливаем сервис edged...${NC}" >&2
@@ -424,7 +468,12 @@ main_menu() {
         echo -e "${CYAN}8. Выход${NC}" >&2
         
         echo -e "${YELLOW}Введите номер:${NC} " >&2
-        read choice
+        if [ -t 0 ] && [ -t 1 ]; then
+            read choice < /dev/tty
+        else
+            echo -e "${RED}Неинтерактивный режим: выбор невозможен. Выход...${NC}" >&2
+            exit 1
+        fi
         case $choice in
             1) install_node ;;
             2) check_logs ;;
