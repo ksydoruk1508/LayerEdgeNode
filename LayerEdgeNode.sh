@@ -321,9 +321,20 @@ EOF
                     rm -f /tmp/risc_log.txt
                     exit 0
                 fi
-                # Проверяем на наличие ошибок
-                if grep -qi "error" /tmp/risc_log.txt || grep -qi "failed" /tmp/risc_log.txt; then
+                # Проверяем на наличие критических ошибок
+                # Игнорируем строки с "warning", чтобы избежать ложных срабатываний
+                if grep -qi "error" /tmp/risc_log.txt && ! grep -qi "warning.*error" /tmp/risc_log.txt; then
                     echo -e "${RED}Обнаружена ошибка при сборке risc0-merkle-service!${NC}" >&2
+                    echo -e "${YELLOW}Строка с ошибкой:${NC}" >&2
+                    grep -i "error" /tmp/risc_log.txt >&2
+                    echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
+                    rm -f /tmp/risc_log.txt
+                    exit 1
+                fi
+                if grep -qi "failed" /tmp/risc_log.txt && ! grep -qi "warning.*failed" /tmp/risc_log.txt; then
+                    echo -e "${RED}Обнаружена ошибка при сборке risc0-merkle-service!${NC}" >&2
+                    echo -e "${YELLOW}Строка с ошибкой:${NC}" >&2
+                    grep -i "failed" /tmp/risc_log.txt >&2
                     echo -e "${YELLOW}Проверьте логи screen-сессии: screen -r risc${NC}" >&2
                     rm -f /tmp/risc_log.txt
                     exit 1
